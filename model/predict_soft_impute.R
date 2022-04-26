@@ -1,3 +1,4 @@
+install.packages("softImpute",repos = "http://cran.us.r-project.org")
 library('softImpute')
 
 # Load and organize pace and offensive rating data

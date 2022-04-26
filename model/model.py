@@ -2,11 +2,13 @@
 Predicts NBA scores with regularized matrix factorization.
 """
 
-from urllib.request import urlopen
 import pickle
 import subprocess
+from urllib.request import urlopen
+
 import pandas as pd
 from bs4 import BeautifulSoup
+from cvxpy import *
 
 
 class NBAModel:
@@ -15,6 +17,7 @@ class NBAModel:
     Seperate predictions are made for Offensive Rating and Pace, which
         are combined to predict the final score.
     """
+
     def __init__(self, update=False):
         """
         Attributes:
@@ -35,23 +38,50 @@ class NBAModel:
                 just use the cached predictions DataFrame.
         """
         self.update = update
-        self.urls = ["http://www.basketball-reference.com/leagues/NBA_2019_games-october.html",
-                     "http://www.basketball-reference.com/leagues/NBA_2019_games-november.html",
-                     "http://www.basketball-reference.com/leagues/NBA_2019_games-december.html"]
-        self.teams = ['ATL', 'BOS', 'BRK', 'CHO', 'CHI', 'CLE',
-                      'DAL', 'DEN', 'HOU', 'DET', 'GSW', 'IND',
-                      'LAC', 'LAL', 'MEM', 'MIA', 'MIL', 'MIN',
-                      'NOP', 'NYK', 'OKC', 'ORL', 'PHI', 'PHO',
-                      'POR', 'SAC', 'SAS', 'TOR', 'UTA', 'WAS']
+        self.urls = [
+            "http://www.basketball-reference.com/leagues/NBA_2019_games-october.html",
+            "http://www.basketball-reference.com/leagues/NBA_2019_games-november.html",
+            "http://www.basketball-reference.com/leagues/NBA_2019_games-december.html",
+        ]
+        self.teams = [
+            "ATL",
+            "BOS",
+            "BRK",
+            "CHO",
+            "CHI",
+            "CLE",
+            "DAL",
+            "DEN",
+            "HOU",
+            "DET",
+            "GSW",
+            "IND",
+            "LAC",
+            "LAL",
+            "MEM",
+            "MIA",
+            "MIL",
+            "MIN",
+            "NOP",
+            "NYK",
+            "OKC",
+            "ORL",
+            "PHI",
+            "PHO",
+            "POR",
+            "SAC",
+            "SAS",
+            "TOR",
+            "UTA",
+            "WAS",
+        ]
         if update:
             self.box_urls = self.get_box_urls()
-            self.df_pace = pd.DataFrame(0, index=self.teams,
-                                        columns=self.teams)
-            self.df_OR = pd.DataFrame(0, index=self.teams,
-                                      columns=self.teams)
+            self.df_pace = pd.DataFrame(0, index=self.teams, columns=self.teams)
+            self.df_OR = pd.DataFrame(0, index=self.teams, columns=self.teams)
             self.df_pace, self.df_OR = self.make_matrices()
             self.write_matrices()
-            self.soft_impute()
+        self.nuclear_norm_solve()
         self.predictions = self.get_predictions()
 
     def __repr__(self):
@@ -67,14 +97,14 @@ class NBAModel:
         """
         box_urls = []
         for url in self.urls:
-            print('****', url)
+            print("****", url)
             response = urlopen(url)
             html = response.read()
-            soup = BeautifulSoup(html, 'html.parser')
-            soup.find_all('a')
-            for link in soup.find_all('a'):
-                if link.get('href').startswith('/boxscores/2'):
-                    box_urls.append(str(link.get('href')))
+            soup = BeautifulSoup(html, "html.parser")
+            soup.find_all("a")
+            for link in soup.find_all("a"):
+                if link.get("href").startswith("/boxscores/2"):
+                    box_urls.append(str(link.get("href")))
         pickle.dump(box_urls, open("box_urls.p", "wb"))
         return box_urls
 
@@ -91,10 +121,10 @@ class NBAModel:
         print(url)
         response = urlopen(url)
         html = response.read()
-        stat_html = str(html).replace('<!--', "").replace('-->', "")
-        soup = BeautifulSoup(stat_html, 'html.parser')
-        all_four_factors = soup.find("table", id="four_factors")
-        stats = pd.read_html(str(all_four_factors))[0]
+        stat_html = str(html).replace("<!--", "").replace("-->", "")
+        soup = BeautifulSoup(stat_html, "html.parser")
+        four_factors_table = soup.find("table", id="four_factors")
+        stats = pd.read_html(str(four_factors_table))[0]
         stats.columns = stats.columns.droplevel()
         print(stats)
         return stats
@@ -178,7 +208,7 @@ class NBAModel:
         """
         df_pace, df_OR = self.df_pace, self.df_OR
         for url in self.box_urls:
-            url = 'http://www.basketball-reference.com' + url
+            url = "http://www.basketball-reference.com" + url
             df_pace, df_OR = self.full_update(url, df_pace, df_OR)
         return df_pace, df_OR
 
@@ -186,15 +216,47 @@ class NBAModel:
         """
         Writes pace and offensive ratings csv files.
         """
-        self.df_pace.to_csv('./model/pace.csv')
-        self.df_OR.to_csv('./model/OR.csv')
+        self.df_pace.to_csv("./model/pace.csv")
+        self.df_OR.to_csv("./model/OR.csv")
 
     def soft_impute(self):
         """
         Calls soft impute algorithm in R.
         Write predictions.csv
         """
-        subprocess.check_output(['Rscript', './model/predict_soft_impute.R'])
+        subprocess.check_output(["Rscript", "./model/predict_soft_impute.R"])
+
+    def nuclear_norm_solve(self, mu=1.0):
+        """
+        Solve using a nuclear norm approach, using CVXPY.
+        [ Candes and Recht, 2009 ]
+        Parameters:
+        -----------
+        A : m x n array
+            matrix we want to complete
+        mu : float
+            hyperparameter controlling tradeoff between nuclear norm and square loss
+        Returns:
+        --------
+        X: m x n array
+            completed matrix
+        """
+        self.df_OR = pd.read_csv("model/OR.csv")
+        self.df_OR = self.df_OR.set_index("Unnamed: 0")
+        mask = self.df_OR.transform(lambda x: x > 0)
+
+        X = Variable(shape=self.df_OR.shape, name="X")
+        objective = Minimize(mu * norm(X, "nuc"))
+        constraints = [multiply(mask, X) == self.df_OR]
+        problem = Problem(objective, constraints)
+        problem.solve(solver=SCS)
+
+        predictions = pd.DataFrame(X.value, columns=self.teams)
+        predictions = predictions.assign(**{"Unnamed: 0": self.teams}).set_index(
+            "Unnamed: 0"
+        )
+        print(predictions)
+        predictions.to_csv("./model/predictions.csv")
 
     def get_predictions(self):
         """
@@ -203,9 +265,11 @@ class NBAModel:
         Returns:
             predictions (pd.DataFrame): DataFrame of predictions
         """
-        predictions = (pd.read_csv('model/predictions.csv')
-                       .assign(**{'Unnamed: 0': self.teams})
-                       .set_index('Unnamed: 0'))
+        predictions = (
+            pd.read_csv("model/predictions.csv")
+            .assign(**{"Unnamed: 0": self.teams})
+            .set_index("Unnamed: 0")
+        )
         predictions.columns = self.teams
         return predictions
 
@@ -225,15 +289,17 @@ class NBAModel:
         team2s = self.predictions.loc[team2][team1]
         print(team1, team2)
         print(team1s, team2s)
-        print('')
+        print("")
+
 
 model = NBAModel(update=False)
-model.get_scores('PHO', 'WAS')
-model.get_scores('GSW', 'IND')
-model.get_scores('MEM', 'CHO')
-model.get_scores('MIA', 'PHI')
-model.get_scores('HOU', 'DET')
-model.get_scores('ORL', 'MIL')
-model.get_scores('BOS', 'MIN')
-model.get_scores('DAL', 'SAS')
-model.get_scores('TOR', 'LAC')
+# model.get_scores('PHO', 'WAS')
+# model.get_scores('GSW', 'IND')
+# model.get_scores('MEM', 'CHO')
+# model.get_scores('MIA', 'PHI')
+# model.get_scores('HOU', 'DET')
+# model.get_scores('ORL', 'MIL')
+# model.get_scores('BOS', 'MIN')
+# model.get_scores('DAL', 'SAS')
+# model.get_scores('TOR', 'LAC')
+model.get_scores("TOR", "GSW")
