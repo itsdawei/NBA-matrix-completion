@@ -1,4 +1,5 @@
-from model.model import NBAModel
+from model.NuclearNormMinimizationModel import NuclearNormMinimizationModel
+from model.OffensiveRatingSource import OffensiveRatingSource
 import sys
 
 TEAMS = [
@@ -34,6 +35,12 @@ TEAMS = [
     "WAS",
 ]
 
+URL = [
+    "http://www.basketball-reference.com/leagues/NBA_2019_games-october.html",
+    "http://www.basketball-reference.com/leagues/NBA_2019_games-november.html",
+    "http://www.basketball-reference.com/leagues/NBA_2019_games-december.html",
+]
+
 if __name__ == "__main__":
     """
     Main driver of the program
@@ -48,14 +55,24 @@ if __name__ == "__main__":
     if len(args) > 2:
         raise SystemExit(f"Usage: {sys.argv[0]} [-u] <team_1> <team_2>")
 
-    update = False;
-    if "-u" in opts:
-        update = True
-    model = NBAModel(update)
+    if "-u" not in opts:
+        URL = [];
 
+    # load data
+    data = OffensiveRatingSource(URL)
+
+    # solves the matrix
+    model = NuclearNormMinimizationModel()
+    model.solve(data.get_data())
+
+    # get predictions
     if not args:
         matchups = [(a,b) for a in TEAMS for b in TEAMS if a is not b]
         for (a,b) in matchups:
-            model.get_scores(a, b)
+            print(a,b)
+            print(model.get_scores(a, b))
     elif len(args) == 2:
-        model.get_scores(args[0].upper(), args[1].upper())
+        a = args[0].upper()
+        b = args[1].upper()
+        print(a,b)
+        print(model.get_scores(a,b)) 

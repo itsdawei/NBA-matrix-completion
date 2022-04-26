@@ -1,7 +1,7 @@
 import mock
 import numpy as np
 import pandas as pd
-import model.model as model
+import model.model_old as model_old
 
 mock_stats = [[np.nan for i in range(7)],
               [np.nan for i in range(7)],
@@ -11,21 +11,21 @@ mock_stats_df = pd.DataFrame(mock_stats, columns=range(7))
 
 
 def test_NBAModel():
-    nba_model = model.NBAModel()
+    nba_model = model_old.NBAModel()
     assert hasattr(nba_model, 'urls')
     assert hasattr(nba_model, 'teams')
     assert hasattr(nba_model, 'box_urls')
     assert hasattr(nba_model, 'predictions')
 
 
-@mock.patch.object(model.NBAModel, 'write_matrices',
+@mock.patch.object(model_old.NBAModel, 'write_matrices',
                    return_value=True)
-@mock.patch.object(model.NBAModel, 'soft_impute',
+@mock.patch.object(model_old.NBAModel, 'soft_impute',
                    return_value=True)
-@mock.patch.object(model.NBAModel, 'get_stats',
+@mock.patch.object(model_old.NBAModel, 'get_stats',
                    return_value=mock_stats_df)
 def test_NBAModel_update(*args):
-    nba_model = model.NBAModel(update=True)
+    nba_model = model_old.NBAModel(update=True)
     assert hasattr(nba_model, 'urls')
     assert hasattr(nba_model, 'teams')
     assert hasattr(nba_model, 'box_urls')
@@ -33,6 +33,6 @@ def test_NBAModel_update(*args):
 
 
 def test_prediction():
-    nba_model = model.NBAModel()
+    nba_model = model_old.NBAModel()
     nba_model.get_scores('TOR', 'LAC')
     
