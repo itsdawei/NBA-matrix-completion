@@ -2,7 +2,7 @@
 Predicts NBA scores with regularized matrix factorization.
 """
 
-import urllib2
+from urllib.request import urlopen
 import pickle
 import subprocess
 import pandas as pd
@@ -45,10 +45,8 @@ class NBAModel:
                       'POR', 'SAC', 'SAS', 'TOR', 'UTA', 'WAS']
         if update:
             self.box_urls = self.get_urls()
-            self.df_pace = pd.DataFrame(0, index=self.teams,
-                                        columns=self.teams)
-            self.df_OR = pd.DataFrame(0, index=self.teams,
-                                      columns=self.teams)
+            self.df_pace = pd.DataFrame(0, index=self.teams, columns=self.teams)
+            self.df_OR = pd.DataFrame(0, index=self.teams, columns=self.teams)
             self.df_pace, self.df_OR = self.make_matrices()
             self.write_matrices()
             self.soft_impute()
@@ -68,7 +66,7 @@ class NBAModel:
         box_urls = []
         for url in self.urls:
             print('****', url)
-            response = urllib2.urlopen(url)
+            response = urlopen(url)
             html = response.read()
             soup = BeautifulSoup(html, 'html.parser')
             soup.find_all('a')
@@ -88,10 +86,9 @@ class NBAModel:
         Returns:
             stats (pd.DataFrame): DataFrame of statistics from game
         """
-        response = urllib2.urlopen(url)
+        response = urlopen(url)
         html = response.read()
-        stat_html = html.replace('<!--', "")
-        stat_html = stat_html.replace('-->', "")
+        stat_html = str(html).replace('<!--', "").replace('-->', "")
         stats = pd.read_html(stat_html)
         return stats[-5]
 
@@ -109,6 +106,7 @@ class NBAModel:
         Returns:
             df (pd.DataFrame): updated DataFrame
         """
+        # print(df)
         old_value = df[team2].loc[team1]
         if old_value == 0:
             new_value = float(value)
@@ -136,6 +134,7 @@ class NBAModel:
             pace (float): pace of game (possessions per game)
         """
         team1 = table.loc[2][0]
+        print(team1)
         team2 = table.loc[3][0]
         pace = table.loc[3][1]
         team1_OR = table.loc[2][6]
@@ -157,6 +156,7 @@ class NBAModel:
         """
 
         table = self.get_stats(url)
+        # print(table)
         team1, team2, team1_OR, team2_OR, pace = self.extract_data(table)
         df_pace = self.update_df(df_pace, team1, team2, pace)
         df_pace = self.update_df(df_pace, team2, team1, pace)
@@ -225,12 +225,12 @@ class NBAModel:
 
 model = NBAModel(update=True)
 model.get_scores('PHO', 'WAS')
-model.get_scores('GSW', 'IND')
-model.get_scores('MEM', 'CHO')
-model.get_scores('MIA', 'PHI')
-model.get_scores('HOU', 'DET')
-model.get_scores('ORL', 'MIL')
-model.get_scores('BOS', 'MIN')
-model.get_scores('DAL', 'SAS')
-model.get_scores('TOR', 'LAC')
+# model.get_scores('GSW', 'IND')
+# model.get_scores('MEM', 'CHO')
+# model.get_scores('MIA', 'PHI')
+# model.get_scores('HOU', 'DET')
+# model.get_scores('ORL', 'MIL')
+# model.get_scores('BOS', 'MIN')
+# model.get_scores('DAL', 'SAS')
+# model.get_scores('TOR', 'LAC')
 
