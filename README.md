@@ -3,6 +3,13 @@
 
 Predicts scores of NBA games using matrix completion
 
+## Quick Start
+```python
+python3 setup.py
+python3 nba.py [-u] <team_1> <team_2>
+```
+use `-u` if you want to update the dataset
+
 ## The Model
 For a given NBA game, if you could accurately predict each team's offensive rating (points per 100 possessions) and the pace of the game (possessions per game), you could estimate the final score of the game.
 

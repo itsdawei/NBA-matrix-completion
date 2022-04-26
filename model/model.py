@@ -290,16 +290,3 @@ class NBAModel:
         print(team1, team2)
         print(team1s, team2s)
         print("")
-
-
-model = NBAModel(update=False)
-# model.get_scores('PHO', 'WAS')
-# model.get_scores('GSW', 'IND')
-# model.get_scores('MEM', 'CHO')
-# model.get_scores('MIA', 'PHI')
-# model.get_scores('HOU', 'DET')
-# model.get_scores('ORL', 'MIL')
-# model.get_scores('BOS', 'MIN')
-# model.get_scores('DAL', 'SAS')
-# model.get_scores('TOR', 'LAC')
-model.get_scores("TOR", "GSW")
