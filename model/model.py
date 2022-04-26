@@ -35,18 +35,20 @@ class NBAModel:
                 just use the cached predictions DataFrame.
         """
         self.update = update
-        self.urls = ["http://www.basketball-reference.com/leagues/NBA_2017_games-october.html",
-                     "http://www.basketball-reference.com/leagues/NBA_2017_games-november.html",
-                     "http://www.basketball-reference.com/leagues/NBA_2017_games-december.html"]
+        self.urls = ["http://www.basketball-reference.com/leagues/NBA_2019_games-october.html",
+                     "http://www.basketball-reference.com/leagues/NBA_2019_games-november.html",
+                     "http://www.basketball-reference.com/leagues/NBA_2019_games-december.html"]
         self.teams = ['ATL', 'BOS', 'BRK', 'CHO', 'CHI', 'CLE',
                       'DAL', 'DEN', 'HOU', 'DET', 'GSW', 'IND',
                       'LAC', 'LAL', 'MEM', 'MIA', 'MIL', 'MIN',
                       'NOP', 'NYK', 'OKC', 'ORL', 'PHI', 'PHO',
                       'POR', 'SAC', 'SAS', 'TOR', 'UTA', 'WAS']
         if update:
-            self.box_urls = self.get_urls()
-            self.df_pace = pd.DataFrame(0, index=self.teams, columns=self.teams)
-            self.df_OR = pd.DataFrame(0, index=self.teams, columns=self.teams)
+            self.box_urls = self.get_box_urls()
+            self.df_pace = pd.DataFrame(0, index=self.teams,
+                                        columns=self.teams)
+            self.df_OR = pd.DataFrame(0, index=self.teams,
+                                      columns=self.teams)
             self.df_pace, self.df_OR = self.make_matrices()
             self.write_matrices()
             self.soft_impute()
@@ -55,7 +57,7 @@ class NBAModel:
     def __repr__(self):
         return "NBAModel(update={update})".format(update=self.update)
 
-    def get_urls(self):
+    def get_box_urls(self):
         """
         Gets all URLs for box scores (basketball-reference.com)
             from current season.
@@ -86,11 +88,16 @@ class NBAModel:
         Returns:
             stats (pd.DataFrame): DataFrame of statistics from game
         """
+        print(url)
         response = urlopen(url)
         html = response.read()
         stat_html = str(html).replace('<!--', "").replace('-->', "")
-        stats = pd.read_html(stat_html)
-        return stats[-5]
+        soup = BeautifulSoup(stat_html, 'html.parser')
+        all_four_factors = soup.find("table", id="four_factors")
+        stats = pd.read_html(str(all_four_factors))[0]
+        stats.columns = stats.columns.droplevel()
+        print(stats)
+        return stats
 
     def update_df(self, df, team1, team2, value):
         """
@@ -106,13 +113,12 @@ class NBAModel:
         Returns:
             df (pd.DataFrame): updated DataFrame
         """
-        # print(df)
-        old_value = df[team2].loc[team1]
+        old_value = df.loc[team2][team1]
         if old_value == 0:
             new_value = float(value)
         else:
             new_value = (float(old_value) + float(value)) / 2
-        df[team2].loc[team1] = new_value
+        df.loc[team2][team1] = new_value
         return df
 
     def extract_data(self, table):
@@ -133,12 +139,11 @@ class NBAModel:
                 100 posessions)
             pace (float): pace of game (possessions per game)
         """
-        team1 = table.loc[2][0]
-        print(team1)
-        team2 = table.loc[3][0]
-        pace = table.loc[3][1]
-        team1_OR = table.loc[2][6]
-        team2_OR = table.loc[3][6]
+        team1 = table.loc[0][0]
+        team2 = table.loc[1][0]
+        pace = table.loc[1][1]
+        team1_OR = table.loc[0]["ORtg"]
+        team2_OR = table.loc[1]["ORtg"]
         return team1, team2, team1_OR, team2_OR, pace
 
     def full_update(self, url, df_pace, df_OR):
@@ -181,8 +186,8 @@ class NBAModel:
         """
         Writes pace and offensive ratings csv files.
         """
-        self.df_pace.to_csv('pace.csv')
-        self.df_OR.to_csv('OR.csv')
+        self.df_pace.to_csv('./model/pace.csv')
+        self.df_OR.to_csv('./model/OR.csv')
 
     def soft_impute(self):
         """
@@ -222,15 +227,13 @@ class NBAModel:
         print(team1s, team2s)
         print('')
 
-
-model = NBAModel(update=True)
+model = NBAModel(update=False)
 model.get_scores('PHO', 'WAS')
-# model.get_scores('GSW', 'IND')
-# model.get_scores('MEM', 'CHO')
-# model.get_scores('MIA', 'PHI')
-# model.get_scores('HOU', 'DET')
-# model.get_scores('ORL', 'MIL')
-# model.get_scores('BOS', 'MIN')
-# model.get_scores('DAL', 'SAS')
-# model.get_scores('TOR', 'LAC')
-
+model.get_scores('GSW', 'IND')
+model.get_scores('MEM', 'CHO')
+model.get_scores('MIA', 'PHI')
+model.get_scores('HOU', 'DET')
+model.get_scores('ORL', 'MIL')
+model.get_scores('BOS', 'MIN')
+model.get_scores('DAL', 'SAS')
+model.get_scores('TOR', 'LAC')
