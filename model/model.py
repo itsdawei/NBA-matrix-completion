@@ -44,7 +44,7 @@ class NBAModel:
                       'NOP', 'NYK', 'OKC', 'ORL', 'PHI', 'PHO',
                       'POR', 'SAC', 'SAS', 'TOR', 'UTA', 'WAS']
         if update:
-            self.box_urls = self.get_urls()
+            self.box_urls = self.get_box_urls()
             self.df_pace = pd.DataFrame(0, index=self.teams,
                                         columns=self.teams)
             self.df_OR = pd.DataFrame(0, index=self.teams,
@@ -57,7 +57,7 @@ class NBAModel:
     def __repr__(self):
         return "NBAModel(update={update})".format(update=self.update)
 
-    def get_urls(self):
+    def get_box_urls(self):
         """
         Gets all URLs for box scores (basketball-reference.com)
             from current season.
@@ -88,14 +88,17 @@ class NBAModel:
         Returns:
             stats (pd.DataFrame): DataFrame of statistics from game
         """
+        print(url)
         response = urlopen(url)
         html = response.read()
-        html = html.decode("utf8")
-        stat_html = html.replace('<!--', "")
-        stat_html = stat_html.replace('-->', "")
-        stats = pd.read_html(stat_html)
-        print(stats[-5])
-        return stats[-5]
+        stat_html = str(html).replace('<!--', "").replace('-->', "")
+        soup = BeautifulSoup(stat_html, 'html.parser')
+        all_four_factors = soup.find("table", id="four_factors")
+        # print(soup.find("div", id="div_four_factors").prettify())
+        stats = pd.read_html(str(all_four_factors))[0]
+        stats.columns = stats.columns.droplevel()
+        print(stats)
+        return stats
 
     def update_df(self, df, team1, team2, value):
         """
@@ -111,12 +114,12 @@ class NBAModel:
         Returns:
             df (pd.DataFrame): updated DataFrame
         """
-        old_value = df[team2].loc[team1]
+        old_value = df.loc[team2][team1]
         if old_value == 0:
             new_value = float(value)
         else:
             new_value = (float(old_value) + float(value)) / 2
-        df[team2].loc[team1] = new_value
+        df.loc[team2][team1] = new_value
         return df
 
     def extract_data(self, table):
@@ -140,8 +143,8 @@ class NBAModel:
         team1 = table.loc[0][0]
         team2 = table.loc[1][0]
         pace = table.loc[1][1]
-        team1_OR = table.loc[0][6]
-        team2_OR = table.loc[1][6]
+        team1_OR = table.loc[0]["ORtg"]
+        team2_OR = table.loc[1]["ORtg"]
         return team1, team2, team1_OR, team2_OR, pace
 
     def full_update(self, url, df_pace, df_OR):
@@ -224,8 +227,7 @@ class NBAModel:
         print(team1s, team2s)
         print('')
 
-"""
-model = NBAModel(update=True)
+model = NBAModel(update=False)
 model.get_scores('PHO', 'WAS')
 model.get_scores('GSW', 'IND')
 model.get_scores('MEM', 'CHO')
@@ -235,4 +237,3 @@ model.get_scores('ORL', 'MIL')
 model.get_scores('BOS', 'MIN')
 model.get_scores('DAL', 'SAS')
 model.get_scores('TOR', 'LAC')
-"""
