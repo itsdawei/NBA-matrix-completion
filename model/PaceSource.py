@@ -5,21 +5,23 @@ import pandas as pd
 from bs4 import BeautifulSoup
 from model.Source import Source
 
-class OffensiveRatingSource(Source):
+class PaceSource(Source):
 
-    file_name = "offensive_ratings.csv"
+    file_name = "pace.csv"
 
-    def make_matrices(self, urls):
+    def make_matrices(self, urls) -> pd.DataFrame:
         """
-        Makes matrices of pace
-        Each entry in the matrix is the value (pace)
-            of team 1 against team 2 (rows and columns respectively)
-            for all games considered in the model.
+        Makes matrices of offesive rating and pace
+        Each entry in the matrix is the value (offensive rating or pace)
+            of team1 against team2 (rows and columns respectively) for
+            all games considered in the model.
         """
         box_urls = self.get_box_urls(urls)
+        df_pace = self.data
         for url in box_urls:
             url = "http://www.basketball-reference.com" + url
-            self.data = self.full_update(url, self.data)
+            df_pace = self.full_update(url, df_pace)
+        return df_pace
 
     def get_box_urls(self, urls):
         """
@@ -84,27 +86,25 @@ class OffensiveRatingSource(Source):
         df.loc[team2][team1] = new_value
         return df
 
-    def full_update(self, url: str, df_OR: pd.DataFrame):
+    def full_update(self, url: str, data: pd.DataFrame):
         """
         Updates the pace and offensive rating matrices for a given game.
 
         Args:
             url (str): URL to box score (basketball-reference.com)
-            df_pace (pd.DataFrame): pace DataFrame to update
-            df_OR (pd.DataFrame): Offensive Rating DataFrame to update
+            df_pace (pd.DataFrame): Pace DataFrame to update
 
         Returns:
-            df_pace, df_OR (pd.DataFrame, pd.DataFrame):
-                updated pace and Offensive rating DataFrames
+            df_pace (pd.DataFrame):
+                updated pace DataFrame
         """
 
         table = self.get_stats(url)
 
         team1 = table.loc[0][0]
         team2 = table.loc[1][0]
-        team1_OR = table.loc[0]["ORtg"]
-        team2_OR = table.loc[1]["ORtg"]
+        pace = table.loc[1][1]
 
-        df_OR = self.update_df(df_OR, team1, team2, team1_OR)
-        df_OR = self.update_df(df_OR, team2, team1, team2_OR)
-        return df_OR
+        data = self.update_df(data, team1, team2, pace)
+        data = self.update_df(data, team2, team1, pace)
+        return data

@@ -1,5 +1,6 @@
 from model.NuclearNormMinimizationModel import NuclearNormMinimizationModel
 from model.OffensiveRatingSource import OffensiveRatingSource
+from model.PaceSource import PaceSource
 import sys
 
 TEAMS = [
@@ -59,11 +60,15 @@ if __name__ == "__main__":
         URL = [];
 
     # load data
-    data = OffensiveRatingSource(URL)
+    source = OffensiveRatingSource()
+    data = source.get_data(URL)
 
     # solves the matrix
     model = NuclearNormMinimizationModel()
-    model.solve(data.get_data())
+    predictions = model.solve(data)
+
+    # write to predictions.csv
+    predictions.to_csv("cache/predictions.csv")
 
     # get predictions
     if not args:

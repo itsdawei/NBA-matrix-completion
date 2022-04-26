@@ -2,7 +2,40 @@ import pandas as pd
 
 class Model:
 
-    def solve(self, A: pd.DataFrame) -> pd.DataFrame:
+    teams = [
+        "ATL",
+        "BOS",
+        "BRK",
+        "CHO",
+        "CHI",
+        "CLE",
+        "DAL",
+        "DEN",
+        "HOU",
+        "DET",
+        "GSW",
+        "IND",
+        "LAC",
+        "LAL",
+        "MEM",
+        "MIA",
+        "MIL",
+        "MIN",
+        "NOP",
+        "NYK",
+        "OKC",
+        "ORL",
+        "PHI",
+        "PHO",
+        "POR",
+        "SAC",
+        "SAS",
+        "TOR",
+        "UTA",
+        "WAS",
+    ]
+
+    def solve(self, data: pd.DataFrame) -> pd.DataFrame:
         """
         Solve the matrix by filling in the entries
         Parameters:

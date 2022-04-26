@@ -4,40 +4,6 @@ from model.model import Model
 
 class NuclearNormMinimizationModel(Model):
 
-    def __init__(self) -> None:
-        self.teams = [
-            "ATL",
-            "BOS",
-            "BRK",
-            "CHO",
-            "CHI",
-            "CLE",
-            "DAL",
-            "DEN",
-            "HOU",
-            "DET",
-            "GSW",
-            "IND",
-            "LAC",
-            "LAL",
-            "MEM",
-            "MIA",
-            "MIL",
-            "MIN",
-            "NOP",
-            "NYK",
-            "OKC",
-            "ORL",
-            "PHI",
-            "PHO",
-            "POR",
-            "SAC",
-            "SAS",
-            "TOR",
-            "UTA",
-            "WAS",
-        ]
-
     def solve(self, A: pd.DataFrame) -> pd.DataFrame:
         """
         Solve using a nuclear norm approach, using CVXPY.
