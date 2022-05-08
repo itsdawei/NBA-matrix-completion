@@ -16,19 +16,7 @@ class OffensiveRatingSource(Source):
             of team 1 against team 2 (rows and columns respectively)
             for all games considered in the model.
         """
-        box_urls = self.get_box_urls(urls)
-        for url in box_urls:
-            url = "http://www.basketball-reference.com" + url
-            self.data = self.full_update(url, self.data)
-
-    def get_box_urls(self, urls):
-        """
-        Gets all URLs for box scores (basketball-reference.com)
-            from current season.
-
-        Returns:
-            box_urls (list): list of box score URLs from basketball reference
-        """
+        # get box urls
         box_urls = []
         for url in urls:
             print("****", url)
@@ -40,7 +28,11 @@ class OffensiveRatingSource(Source):
                 if link.get("href").startswith("/boxscores/2"):
                     box_urls.append(str(link.get("href")))
         pickle.dump(box_urls, open("box_urls.p", "wb"))
-        return box_urls
+
+        # update data
+        for url in box_urls:
+            url = "http://www.basketball-reference.com" + url
+            self.data = self.full_update(url, self.data)
 
     def get_stats(self, url: str):
         """

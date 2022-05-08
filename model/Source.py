@@ -3,7 +3,7 @@ import pandas as pd
 class Source:
     data = pd.DataFrame()
     root_path = "cache/"
-    file_name = "default.csv"
+    file_name = "default_source.csv"
     teams = [
         "ATL",
         "BOS",
@@ -41,7 +41,7 @@ class Source:
         self.data = pd.DataFrame(0, index=self.teams, columns=self.teams)
         if urls:
             self.data = self.make_matrices(urls)
-            self.write_to_csv()
+            self.data.to_csv(self.root_path + self.file_name)
         else:
             self.data = pd.read_csv(self.root_path + self.file_name)
             self.data = self.data.set_index("Unnamed: 0")
@@ -53,9 +53,3 @@ class Source:
         Override this method for any implementation of Source.
         """
         pass
-
-    def write_to_csv(self):
-        """
-        Writes pace and offensive ratings csv files.
-        """
-        self.data.to_csv(self.root_path + self.file_name)

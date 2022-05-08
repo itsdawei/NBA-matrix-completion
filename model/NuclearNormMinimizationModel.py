@@ -4,7 +4,7 @@ from model.model import Model
 
 class NuclearNormMinimizationModel(Model):
 
-    def solve(self, A: pd.DataFrame) -> pd.DataFrame:
+    def predict(self, A: pd.DataFrame) -> pd.DataFrame:
         """
         Solve using a nuclear norm approach, using CVXPY.
         [ Candes and Recht, 2009 ]

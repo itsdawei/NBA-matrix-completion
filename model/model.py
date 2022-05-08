@@ -35,7 +35,7 @@ class Model:
         "WAS",
     ]
 
-    def solve(self, data: pd.DataFrame) -> pd.DataFrame:
+    def predict(self, data: pd.DataFrame) -> pd.DataFrame:
         """
         Solve the matrix by filling in the entries
         Parameters:
