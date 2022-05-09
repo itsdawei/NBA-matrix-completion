@@ -2,12 +2,11 @@ import pandas as pd
 import cvxpy
 from model.model import Model
 
-class NuclearNormMinimization(Model):
+class NuclearNormMinimizationMSE(Model):
 
     def predict(self, A: pd.DataFrame) -> pd.DataFrame:
         """
         Solve using a nuclear norm approach, using CVXPY.
-        [ Candes and Recht, 2009 ]
         Parameters:
         -----------
         A : m x n array
@@ -24,8 +23,11 @@ class NuclearNormMinimization(Model):
 
         # cvx optimization problem
         X = cvxpy.Variable(shape=A.shape, name="X")
+        Delta = cvxpy.Parameter()
+        Delta.value = 20
+
         objective = cvxpy.Minimize(cvxpy.norm(X, "nuc"))
-        constraints = [cvxpy.multiply(mask, X) == A]
+        constraints = [cvxpy.sum_squares(cvxpy.multiply(mask, X) - A) <= Delta]
 
         problem = cvxpy.Problem(objective, constraints)
         problem.solve(solver=cvxpy.SCS)

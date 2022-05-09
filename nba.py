@@ -1,4 +1,5 @@
-from model.NuclearNormMinimizationModel import NuclearNormMinimizationModel
+from model.NuclearNormMinimizationModel import NuclearNormMinimization
+from model.NNMwithMSE import NuclearNormMinimizationMSE
 from model.OffensiveRatingSource import OffensiveRatingSource
 from model.PaceSource import PaceSource
 from model.FreeThrowsSource import FreeThrowsSource
@@ -14,46 +15,25 @@ import plotly as px
 
 import sys
 
-TEAMS = [
-    "ATL",
-    "BOS",
-    "BRK",
-    "CHO",
-    "CHI",
-    "CLE",
-    "DAL",
-    "DEN",
-    "HOU",
-    "DET",
-    "GSW",
-    "IND",
-    "LAC",
-    "LAL",
-    "MEM",
-    "MIA",
-    "MIL",
-    "MIN",
-    "NOP",
-    "NYK",
-    "OKC",
-    "ORL",
-    "PHI",
-    "PHO",
-    "POR",
-    "SAC",
-    "SAS",
-    "TOR",
-    "UTA",
-    "WAS",
-]
+TEAMS = [ "ATL", "BOS", "BRK", "CHO", "CHI", "CLE", "DAL", "DEN", "HOU", "DET", "GSW",
+    "IND", "LAC", "LAL", "MEM", "MIA", "MIL", "MIN", "NOP", "NYK", "OKC", "ORL", "PHI",
+    "PHO", "POR", "SAC", "SAS", "TOR", "UTA", "WAS"
+    ]
+
+# URL = [
+#     "http://www.basketball-reference.com/leagues/NBA_2019_games-october.html",
+#     "http://www.basketball-reference.com/leagues/NBA_2019_games-november.html",
+#     "http://www.basketball-reference.com/leagues/NBA_2019_games-december.html",
+#     ]
 
 URL = [
-    "http://www.basketball-reference.com/leagues/NBA_2019_games-october.html",
-    "http://www.basketball-reference.com/leagues/NBA_2019_games-november.html",
-    "http://www.basketball-reference.com/leagues/NBA_2019_games-december.html",
-]
+    "http://www.basketball-reference.com/leagues/NBA_2020_games-october.html",
+    "http://www.basketball-reference.com/leagues/NBA_2020_games-november.html",
+    "http://www.basketball-reference.com/leagues/NBA_2020_games-december.html",
+    ]
 
 def get_actual():
+    truth = pd.DataFrame(columns = TEAMS, index = TEAMS)
     # get box urls
     box_urls = []
     for url in URL:
@@ -83,8 +63,8 @@ def get_actual():
         b = stats.loc[1]["team"]
         score_a = stats.loc[0]["T"]
         score_b = stats.loc[1]["T"]
-        truth.loc[a][b] = score_a
-        truth.loc[b][a] = score_b
+        truth.loc[a][b] = score_a - score_b
+        truth.loc[b][a] = score_b - score_a
     truth.to_csv("cache/truth.csv")
 
 def benchmark(predictions, update = False):
@@ -95,8 +75,11 @@ def benchmark(predictions, update = False):
         truth = pd.read_csv("cache/truth.csv")
         truth = truth.set_index("Unnamed: 0")
 
-    mse = ((predictions - truth) ** 2).mean()
-    mse.columns = ['team', 'mse']
+    # compute prediction score difference
+    prediction_diff = predictions - predictions.transpose()
+
+    mse = ((prediction_diff - truth) ** 2).mean() ** 0.5
+    print(mse)
     df = pd.DataFrame({'team': mse.index ,'mse' : mse.values})
 
     return df
@@ -120,34 +103,38 @@ if __name__ == "__main__":
         urls = URL;
 
     # load data
-    source = OffensiveRatingSource()
-    data = source.get_data(urls)
+    df_OF = OffensiveRatingSource().get_data(urls)
+    df_pace = PaceSource().get_data(urls)
 
     # solves the matrix
-    model = NuclearNormMinimizationModel()
-    predictions = model.predict(data)
+    model = NuclearNormMinimization()
+    # model = NuclearNormMinimizationMSE()
+    predictions_OF = model.predict(df_OF)
+    predictions_pace = model.predict(df_pace)
+
+    # write to predictions.csv
+    predictions = predictions_OF * predictions_pace / 100
+    predictions.to_csv("cache/predictions.csv")
 
     # cross validation
-    df = benchmark(predictions)
-    print("MSE: ", df)
+    df_mse = benchmark(predictions)
+    print(df_mse)
 
-
+    # plot the RMSE
     pd.options.plotting.backend = 'plotly'
-    fig = df.plot.scatter(x='team', y='mse')
+    fig = df_mse.plot(kind='bar',x='team', y='mse', color='team',
+            labels={'team':'Team', 'mse':'MSE (log)'})
     fig.show()
-    
-    # write to predictions.csv
-    predictions.to_csv("cache/predictions.csv")
+
 
     # get predictions
     if not args:
         matchups = [(a,b) for a in TEAMS for b in TEAMS if a is not b]
         for (a,b) in matchups:
             print(a,b)
-            print(model.get_scores(a, b))
-            print(val.loc[a][b])
+            print(predictions.loc[a][b]) 
     elif len(args) == 2:
         a = args[0].upper()
         b = args[1].upper()
         print(a,b)
-        print(model.get_scores(a,b)) 
+        print(predictions.loc[a][b], " ", predictions.loc[b][a]) 
