@@ -38,9 +38,10 @@ class Source:
     ]
 
     def get_data(self, urls = []):
-        self.data = pd.DataFrame(0, index=self.teams, columns=self.teams)
+        self.data = pd.DataFrame(index=self.teams, columns=self.teams)
         if urls:
-            self.data = self.make_matrices(urls)
+            self.make_matrices(urls)
+            print(self.data)
             self.data.to_csv(self.root_path + self.file_name)
         else:
             self.data = pd.read_csv(self.root_path + self.file_name)

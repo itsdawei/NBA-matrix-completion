@@ -1,12 +1,16 @@
 from model.NuclearNormMinimizationModel import NuclearNormMinimizationModel
 from model.OffensiveRatingSource import OffensiveRatingSource
 from model.PaceSource import PaceSource
-from sklearn.model_selection import LeavePOut
+from model.FreeThrowsSource import FreeThrowsSource
+
+from sklearn.metrics import mean_squared_error
 
 import pickle
 from urllib.request import urlopen
 from bs4 import BeautifulSoup
 import pandas as pd
+import numpy as np
+import plotly as px
 
 import sys
 
@@ -49,46 +53,54 @@ URL = [
     "http://www.basketball-reference.com/leagues/NBA_2019_games-december.html",
 ]
 
+def get_actual():
+    # get box urls
+    box_urls = []
+    for url in URL:
+        print("****", url)
+        response = urlopen(url)
+        html = response.read()
+        soup = BeautifulSoup(html, "html.parser")
+        soup.find_all("a")
+        for link in soup.find_all("a"):
+            if link.get("href").startswith("/boxscores/2"):
+                box_urls.append(str(link.get("href")))
+    pickle.dump(box_urls, open("box_urls.p", "wb"))
+
+    # update data
+    for url in box_urls:
+        url = "http://www.basketball-reference.com" + url
+        print(url)
+        response = urlopen(url)
+        html = response.read()
+        stat_html = str(html).replace("<!--", "").replace("-->", "")
+        soup = BeautifulSoup(stat_html, "html.parser")
+        line_score_table = soup.find("table", id="line_score")
+        stats = pd.read_html(str(line_score_table))[0]
+        stats.columns = stats.columns.droplevel()
+        stats = stats.rename({'Unnamed: 0_level_1': 'team'}, axis=1)
+        a = stats.loc[0]["team"]
+        b = stats.loc[1]["team"]
+        score_a = stats.loc[0]["T"]
+        score_b = stats.loc[1]["T"]
+        truth.loc[a][b] = score_a
+        truth.loc[b][a] = score_b
+    truth.to_csv("cache/truth.csv")
+
 def benchmark(predictions, update = False):
     truth = pd.DataFrame(columns = TEAMS, index = TEAMS)
     if update:
-        # get box urls
-        box_urls = []
-        for url in URL:
-            print("****", url)
-            response = urlopen(url)
-            html = response.read()
-            soup = BeautifulSoup(html, "html.parser")
-            soup.find_all("a")
-            for link in soup.find_all("a"):
-                if link.get("href").startswith("/boxscores/2"):
-                    box_urls.append(str(link.get("href")))
-        pickle.dump(box_urls, open("box_urls.p", "wb"))
+        get_actual()
+    else:
+        truth = pd.read_csv("cache/truth.csv")
+        truth = truth.set_index("Unnamed: 0")
 
-        # update data
-        for url in box_urls:
-            url = "http://www.basketball-reference.com" + url
-            print(url)
-            response = urlopen(url)
-            html = response.read()
-            stat_html = str(html).replace("<!--", "").replace("-->", "")
-            soup = BeautifulSoup(stat_html, "html.parser")
-            line_score_table = soup.find("table", id="line_score")
-            stats = pd.read_html(str(line_score_table))[0]
-            stats.columns = stats.columns.droplevel()
-            stats = stats.rename({'Unnamed: 0_level_1': 'team'}, axis=1)
-            a = stats.loc[0]["team"]
-            b = stats.loc[1]["team"]
-            score_a = stats.loc[0]["T"]
-            score_b = stats.loc[1]["T"]
-            truth.loc[a][b] = score_a
-            truth.loc[b][a] = score_b
-        truth.to_csv("cache/truth.csv")
-    truth = pd.read_csv("cache/truth.csv")
-    truth = truth.set_index("Unnamed: 0")
-    val = truth.subtract(predictions, fill_value=0)
-    val.to_csv("cache/benchmark.csv")
-    return val
+    mse = ((predictions - truth) ** 2).mean()
+    mse.columns = ['team', 'mse']
+    df = pd.DataFrame({'team': mse.index ,'mse' : mse.values})
+
+    return df
+
 if __name__ == "__main__":
     """
     Main driver of the program
@@ -116,7 +128,13 @@ if __name__ == "__main__":
     predictions = model.predict(data)
 
     # cross validation
-    val = benchmark(predictions)
+    df = benchmark(predictions)
+    print("MSE: ", df)
+
+
+    pd.options.plotting.backend = 'plotly'
+    fig = df.plot.scatter(x='team', y='mse')
+    fig.show()
     
     # write to predictions.csv
     predictions.to_csv("cache/predictions.csv")
@@ -133,4 +151,3 @@ if __name__ == "__main__":
         b = args[1].upper()
         print(a,b)
         print(model.get_scores(a,b)) 
-        print(val.loc[a][b], val.loc[b][a])

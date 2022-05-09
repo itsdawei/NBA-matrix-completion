@@ -19,12 +19,20 @@ class NuclearNormMinimizationModel(Model):
         X: m x n array
             completed matrix
         """
+        A = A.fillna(0)
         mask = A.transform(lambda x: x > 0)
 
+        # cvx optimization problem
         X = cvxpy.Variable(shape=A.shape, name="X")
         objective = cvxpy.Minimize(cvxpy.norm(X, "nuc"))
         constraints = [cvxpy.multiply(mask, X) == A]
-        problem = cvxpy.Problem(objective, constraints)
+
+        Delta = cvxpy.Parameter()
+        Delta.value = 100
+        constraints_2 = [cvxpy.sum_squares(cvxpy.multiply(mask, X) - A) <= Delta]
+
+        # problem = cvxpy.Problem(objective, constraints)
+        problem = cvxpy.Problem(objective, constraints_2)
         problem.solve(solver=cvxpy.SCS)
 
         predictions = pd.DataFrame(X.value, columns=self.teams)
