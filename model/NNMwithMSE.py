@@ -22,7 +22,7 @@ class NuclearNormMinimizationMSE(Model):
         X = cvxpy.Variable(shape=A.shape, name="X")
         mu = 1.0
 
-        objective = Minimize(mu * norm(X, "nuc") + sum_squares(multiply(mask, X - A)))
+        objective = Minimize(mu * norm(X, "nuc") + 0.5 * sum_squares(multiply(mask, X - A)))
 
         problem = Problem(objective, [])
         problem.solve(solver=SCS)
