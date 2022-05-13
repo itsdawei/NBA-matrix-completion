@@ -1,10 +1,11 @@
 import pandas as pd
-import cvxpy
+import numpy as np
+from cvxpy import *
 from model.model import Model
 
 class NuclearNormMinimizationMSE(Model):
 
-    def predict(self, A: pd.DataFrame) -> pd.DataFrame:
+    def predict(self, A: pd.DataFrame, mask) -> pd.DataFrame:
         """
         Solve using a nuclear norm approach, using CVXPY.
         Parameters:
@@ -18,19 +19,13 @@ class NuclearNormMinimizationMSE(Model):
         X: m x n array
             completed matrix
         """
-        A = A.fillna(0)
-        mask = A.transform(lambda x: x > 0)
-
-        # cvx optimization problem
         X = cvxpy.Variable(shape=A.shape, name="X")
-        Delta = cvxpy.Parameter()
-        Delta.value = 20
+        mu = 1.0
 
-        objective = cvxpy.Minimize(cvxpy.norm(X, "nuc"))
-        constraints = [cvxpy.sum_squares(cvxpy.multiply(mask, X) - A) <= Delta]
+        objective = Minimize(mu * norm(X, "nuc") + sum_squares(multiply(mask, X - A)))
 
-        problem = cvxpy.Problem(objective, constraints)
-        problem.solve(solver=cvxpy.SCS)
+        problem = Problem(objective, [])
+        problem.solve(solver=SCS)
 
         predictions = pd.DataFrame(X.value, columns=self.teams)
         predictions = predictions.assign(**{"Unnamed: 0": self.teams}).set_index(
@@ -39,5 +34,8 @@ class NuclearNormMinimizationMSE(Model):
 
         assert predictions is not None
         self.predictions = predictions
+
+        nuc = np.sum(np.linalg.svd(predictions, compute_uv=False))
+        print("nuc", nuc)
 
         return predictions

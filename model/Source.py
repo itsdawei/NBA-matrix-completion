@@ -47,7 +47,7 @@ class Source:
         else:
             self.data = pd.read_csv(self.root_path + self.file_name)
             self.data = self.data.set_index("Unnamed: 0")
-        return self.data
+        return self.data.fillna(0)
 
     def make_matrices(self, urls):
         """

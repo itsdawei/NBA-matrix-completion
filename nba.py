@@ -2,85 +2,47 @@ from model.NuclearNormMinimizationModel import NuclearNormMinimization
 from model.NNMwithMSE import NuclearNormMinimizationMSE
 from model.OffensiveRatingSource import OffensiveRatingSource
 from model.PaceSource import PaceSource
-from model.FreeThrowsSource import FreeThrowsSource
 
-from sklearn.metrics import mean_squared_error
+from sklearn.model_selection import train_test_split
 
 import pickle
 from urllib.request import urlopen
 from bs4 import BeautifulSoup
 import pandas as pd
 import numpy as np
-import plotly as px
+import plotly.express as px
 
 import sys
+
+URL = [
+    "http://www.basketball-reference.com/leagues/NBA_2019_games-october.html",
+    "http://www.basketball-reference.com/leagues/NBA_2019_games-november.html",
+    "http://www.basketball-reference.com/leagues/NBA_2019_games-december.html",
+    "https://www.basketball-reference.com/leagues/NBA_2019_games-january.html",
+    "https://www.basketball-reference.com/leagues/NBA_2019_games-february.html",
+    "https://www.basketball-reference.com/leagues/NBA_2019_games-march.html",
+    "https://www.basketball-reference.com/leagues/NBA_2019_games-april.html",
+    "https://www.basketball-reference.com/leagues/NBA_2019_games-may.html",
+    "https://www.basketball-reference.com/leagues/NBA_2019_games-june.html",
+    ]
 
 TEAMS = [ "ATL", "BOS", "BRK", "CHO", "CHI", "CLE", "DAL", "DEN", "HOU", "DET", "GSW",
     "IND", "LAC", "LAL", "MEM", "MIA", "MIL", "MIN", "NOP", "NYK", "OKC", "ORL", "PHI",
     "PHO", "POR", "SAC", "SAS", "TOR", "UTA", "WAS"
     ]
 
-# URL = [
-#     "http://www.basketball-reference.com/leagues/NBA_2019_games-october.html",
-#     "http://www.basketball-reference.com/leagues/NBA_2019_games-november.html",
-#     "http://www.basketball-reference.com/leagues/NBA_2019_games-december.html",
-#     ]
+N = len(TEAMS)
+K = 0.5
 
-URL = [
-    "http://www.basketball-reference.com/leagues/NBA_2020_games-october.html",
-    "http://www.basketball-reference.com/leagues/NBA_2020_games-november.html",
-    "http://www.basketball-reference.com/leagues/NBA_2020_games-december.html",
-    ]
-
-def get_actual():
-    truth = pd.DataFrame(columns = TEAMS, index = TEAMS)
-    # get box urls
-    box_urls = []
-    for url in URL:
-        print("****", url)
-        response = urlopen(url)
-        html = response.read()
-        soup = BeautifulSoup(html, "html.parser")
-        soup.find_all("a")
-        for link in soup.find_all("a"):
-            if link.get("href").startswith("/boxscores/2"):
-                box_urls.append(str(link.get("href")))
-    pickle.dump(box_urls, open("box_urls.p", "wb"))
-
-    # update data
-    for url in box_urls:
-        url = "http://www.basketball-reference.com" + url
-        print(url)
-        response = urlopen(url)
-        html = response.read()
-        stat_html = str(html).replace("<!--", "").replace("-->", "")
-        soup = BeautifulSoup(stat_html, "html.parser")
-        line_score_table = soup.find("table", id="line_score")
-        stats = pd.read_html(str(line_score_table))[0]
-        stats.columns = stats.columns.droplevel()
-        stats = stats.rename({'Unnamed: 0_level_1': 'team'}, axis=1)
-        a = stats.loc[0]["team"]
-        b = stats.loc[1]["team"]
-        score_a = stats.loc[0]["T"]
-        score_b = stats.loc[1]["T"]
-        truth.loc[a][b] = score_a - score_b
-        truth.loc[b][a] = score_b - score_a
-    truth.to_csv("cache/truth.csv")
-
-def benchmark(predictions, update = False):
-    truth = pd.DataFrame(columns = TEAMS, index = TEAMS)
-    if update:
-        get_actual()
-    else:
-        truth = pd.read_csv("cache/truth.csv")
-        truth = truth.set_index("Unnamed: 0")
-
-    # compute prediction score difference
-    prediction_diff = predictions - predictions.transpose()
-
-    mse = ((prediction_diff - truth) ** 2).mean() ** 0.5
-    print(mse)
+def benchmark(truth, predictions):
+    mse = ((predictions - truth) ** 2 ** 0.5).mean()
     df = pd.DataFrame({'team': mse.index ,'mse' : mse.values})
+
+    print(df.loc[:,"mse"].mean())
+
+    # a = truth.fillnan(0)
+    # rel_error = np.linalg.norm(predictions - a) / np.linalg.norm(a)
+    # print(rel_error)
 
     return df
 
@@ -103,36 +65,61 @@ if __name__ == "__main__":
         urls = URL;
 
     # load data
-    df_OF = OffensiveRatingSource().get_data(urls)
-    df_pace = PaceSource().get_data(urls)
+    OR = OffensiveRatingSource().get_data(urls)
+    PACE = PaceSource().get_data(urls)
+
+    # generate mask
+    np.random.seed(123)
+    mask = np.zeros((N,N))
+    mask[:int(K * N)] = 1
+    np.apply_along_axis(np.random.shuffle, 0, mask)
+    for i in range(0, len(mask)):
+        mask[i][i] = 0
+
+    # normalize df_OF
+    # print("Normalizing OR...")
+    max_OR = OR.to_numpy().max()
+    norm_df_OR = OR / max_OR
+
+    # print("rank", np.linalg.matrix_rank(OR, tol=0.5))
+    # print("rank of norm_df_OR", np.linalg.matrix_rank(norm_df_OR, tol=0.5))
 
     # solves the matrix
     model = NuclearNormMinimization()
     # model = NuclearNormMinimizationMSE()
-    predictions_OF = model.predict(df_OF)
-    predictions_pace = model.predict(df_pace)
+    recovered_OR = model.predict(norm_df_OR, mask)
+    # recovered_OR = model.predict(OR, mask)
+    recovered_PACE = model.predict(PACE, mask)
+
+    recovered_OR = recovered_OR * max_OR
+
+    print("rank", np.linalg.matrix_rank(recovered_OR, tol=0.5))
 
     # write to predictions.csv
-    predictions = predictions_OF * predictions_pace / 100
+    predictions = recovered_OR * recovered_PACE / 100
     predictions.to_csv("cache/predictions.csv")
 
-    # cross validation
-    df_mse = benchmark(predictions)
+    # S = np.linalg.svd(norm_df_OF, compute_uv=False, full_matrices=False)
+    # _S = np.linalg.svd(predictions_OF, compute_uv=False, full_matrices=False)
+
+    # f = px.scatter(S)
+    # f.show()
+    truth = OR * PACE / 100
+    df_mse = benchmark(truth, predictions)
     print(df_mse)
 
     # plot the RMSE
     pd.options.plotting.backend = 'plotly'
     fig = df_mse.plot(kind='bar',x='team', y='mse', color='team',
-            labels={'team':'Team', 'mse':'MSE (log)'})
+            labels={'team':'Team', 'mse':'MSE'})
     fig.show()
 
-
-    # get predictions
+    # show predictions
     if not args:
         matchups = [(a,b) for a in TEAMS for b in TEAMS if a is not b]
         for (a,b) in matchups:
             print(a,b)
-            print(predictions.loc[a][b]) 
+            print(predictions.loc[a][b], " ", predictions.loc[b][a]) 
     elif len(args) == 2:
         a = args[0].upper()
         b = args[1].upper()

@@ -21,7 +21,7 @@ class OffensiveRatingSource(Source):
         box_urls = []
         for url in urls:
             print("****", url)
-            response = urlopen(url)
+            response = urlopen(url, timeout=120)
             html = response.read()
             soup = BeautifulSoup(html, "html.parser")
             soup.find_all("a")
@@ -50,8 +50,12 @@ class OffensiveRatingSource(Source):
         """
 
         print(url)
-        response = urlopen(url)
-        html = response.read()
+        try:
+            response = urlopen(url, timeout=60)
+            html = response.read()
+        except Exception:
+            print("retrying")
+            return self.full_update(url, df_OR)
         stat_html = str(html).replace("<!--", "").replace("-->", "")
         soup = BeautifulSoup(stat_html, "html.parser")
         four_factors_table = soup.find("table", id="four_factors")
