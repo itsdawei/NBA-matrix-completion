@@ -24,7 +24,7 @@ class NuclearNormMinimization(Model):
         constraints = [multiply(mask, X) == mask * A]
 
         problem = Problem(objective, constraints)
-        problem.solve(solver=SCS)
+        result = problem.solve(solver=SCS)
 
         predictions = pd.DataFrame(X.value, columns=self.teams)
         predictions = predictions.assign(**{"Unnamed: 0": self.teams}).set_index(
@@ -33,8 +33,5 @@ class NuclearNormMinimization(Model):
 
         assert predictions is not None
         self.predictions = predictions
-
-        nuc = np.sum(np.linalg.svd(predictions, compute_uv=False))
-        print("nuc", nuc)
 
         return predictions

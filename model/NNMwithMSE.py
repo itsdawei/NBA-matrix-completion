@@ -34,8 +34,4 @@ class NuclearNormMinimizationMSE(Model):
         assert predictions is not None
         self.predictions = predictions
 
-        nuc = np.sum(np.linalg.svd(predictions, compute_uv=False))
-        print("nuc", nuc)
-        print("result", result)
-
         return predictions

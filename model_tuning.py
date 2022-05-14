@@ -5,28 +5,25 @@ from model.PaceSource import PaceSource
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from cvxpy import *
 
 TEAMS = [ "ATL", "BOS", "BRK", "CHO", "CHI", "CLE", "DAL", "DEN", "HOU", "DET", "GSW",
     "IND", "LAC", "LAL", "MEM", "MIA", "MIL", "MIN", "NOP", "NYK", "OKC", "ORL", "PHI",
     "PHO", "POR", "SAC", "SAS", "TOR", "UTA", "WAS"
     ]
 N = len(TEAMS)
-K = 0.8 # we observe 80% of entries
+K = 0.9 # we observe 80% of entries
 
 OR = OffensiveRatingSource().get_data()
 PACE = PaceSource().get_data()
 combined = OR * PACE / 100
 
-def benchmark(truth, predictions):
-    truth_no_nan = truth.replace(0, np.nan)
+def benchmark(truth, predictions, mask):
+    mask = np.array(mask, dtype=bool)
+    truth_nan = truth.replace(0, np.nan)
 
-    mse = ((predictions - truth_no_nan) ** 2 ** 0.5).mean()
-    df = pd.DataFrame({'team': mse.index ,'mse' : mse.values})
-
-    # a = truth.fillnan(0)
-    # rel_error = np.linalg.norm(predictions - a) / np.linalg.norm(a)
-    # print(rel_error)
-    return df
+    mse = ((predictions.mask(mask) - truth_nan.mask(mask)) ** 2 ** 0.5).mean().mean()
+    return mse
 
 if __name__ == "__main__":
     print("------For K =", K)
@@ -37,27 +34,38 @@ if __name__ == "__main__":
     for i in range(0, len(mask)):
         mask[i][i] = 0
 
-# normalize df_OF
-# max_OR = OR.to_numpy().max()
-# norm_df_OR = OR / max_OR
+    MU = Parameter(nonneg=True)
+    X = Variable(shape=OR.shape, name="X")
+    Y = Variable(shape=PACE.shape, name="Y")
+
+    problemOR = Problem(Minimize(multiply(MU, norm(X, "nuc")) + 0.5 * sum_squares(multiply(mask, X - OR))), [])
+    problemPACE = Problem(Minimize(multiply(MU, norm(Y, "nuc")) + 0.5 * sum_squares(multiply(mask, Y - PACE))), [])
 
     rmse_OR = []
     rmse_PACE = []
     rmse_combined = []
     x = np.linspace(0,40,9)
-    print(x)
     for mu in x:
         print("------For mu =", mu)
-        model = NuclearNormMinimizationMSE()
-# recovered_OR = model.predict(norm_df_OR, mask)
-        recovered_OR = model.predict(OR, mask, mu)
-        recovered_PACE = model.predict(PACE, mask, mu)
+        MU.value = mu
 
-        OR_mse_mean =  benchmark(OR, recovered_OR).loc[:,"mse"].mean()
-        PACE_mse_mean = benchmark(PACE, recovered_PACE).loc[:,"mse"].mean()
+        problemOR.solve(solver=SCS)
+        recovered_OR = pd.DataFrame(X.value, columns=TEAMS)
+        recovered_OR = recovered_OR.assign(**{"Unnamed: 0": TEAMS}).set_index(
+            "Unnamed: 0"
+        )
+
+        problemPACE.solve(solver=SCS)
+        recovered_PACE = pd.DataFrame(Y.value, columns=TEAMS)
+        recovered_PACE = recovered_PACE.assign(**{"Unnamed: 0": TEAMS}).set_index(
+            "Unnamed: 0"
+        )
+
+        OR_mse_mean = benchmark(OR, recovered_OR, mask)
+        PACE_mse_mean = benchmark(PACE, recovered_PACE, mask)
 
         predictions = recovered_OR * recovered_PACE / 100
-        combined_mse_mean = benchmark(combined, predictions).loc[:,"mse"].mean()
+        combined_mse_mean = benchmark(combined, predictions, mask)
 
         rmse_OR.append(OR_mse_mean)
         rmse_PACE.append(PACE_mse_mean)
@@ -66,6 +74,7 @@ if __name__ == "__main__":
     print(rmse_OR)
     print(rmse_PACE)
     print(rmse_combined)
+
     # Plot the RMSE with different lambda
     fig, ax = plt.subplots()
     ax.plot(x, rmse_OR, linewidth=2.0, marker=".", label='Offensive Ratings')
@@ -75,6 +84,7 @@ if __name__ == "__main__":
     ax.set_xlabel('Lambda')
     ax.set_ylabel('Root Mean Squared Error (RMSE)')
 
-    plt.xticks(np.linspace(0.1,1,10))
+    print(x)
+    plt.xticks(x)
     plt.legend()
     plt.show()
