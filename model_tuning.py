@@ -44,7 +44,7 @@ if __name__ == "__main__":
     rmse_OR = []
     rmse_PACE = []
     rmse_combined = []
-    x = np.linspace(0,80,17)
+    x = np.linspace(0,40,9)
     print(x)
     for mu in x:
         print("------For mu =", mu)
@@ -63,12 +63,15 @@ if __name__ == "__main__":
         rmse_PACE.append(PACE_mse_mean)
         rmse_combined.append(combined_mse_mean)
 
+    print(rmse_OR)
+    print(rmse_PACE)
+    print(rmse_combined)
     # Plot the RMSE with different lambda
     fig, ax = plt.subplots()
     ax.plot(x, rmse_OR, linewidth=2.0, marker=".", label='Offensive Ratings')
     ax.plot(x, rmse_PACE, linewidth=2.0, marker=".", label='Pace')
     ax.plot(x, rmse_combined, linewidth=2.0, marker=".", label='Score Potential')
-    ax.set_title("Root Mean Squared Error with Various Proportion of Observations.")
+    ax.set_title("Root Mean Squared Error for Various Lambda")
     ax.set_xlabel('Lambda')
     ax.set_ylabel('Root Mean Squared Error (RMSE)')
 
