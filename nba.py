@@ -3,14 +3,12 @@ from model.NNMwithMSE import NuclearNormMinimizationMSE
 from model.OffensiveRatingSource import OffensiveRatingSource
 from model.PaceSource import PaceSource
 
-from sklearn.model_selection import train_test_split
-
 import pickle
 from urllib.request import urlopen
 from bs4 import BeautifulSoup
 import pandas as pd
 import numpy as np
-import plotly.express as px
+import matplotlib.pyplot as plt
 
 import sys
 
@@ -32,13 +30,12 @@ TEAMS = [ "ATL", "BOS", "BRK", "CHO", "CHI", "CLE", "DAL", "DEN", "HOU", "DET", 
     ]
 
 N = len(TEAMS)
-K = 0.5
 
 def benchmark(truth, predictions):
-    mse = ((predictions - truth) ** 2 ** 0.5).mean()
-    df = pd.DataFrame({'team': mse.index ,'mse' : mse.values})
+    truth_no_nan = truth.replace(0, np.nan)
 
-    print(df.loc[:,"mse"].mean())
+    mse = ((predictions - truth_no_nan) ** 2 ** 0.5).mean()
+    df = pd.DataFrame({'team': mse.index ,'mse' : mse.values})
 
     # a = truth.fillnan(0)
     # rel_error = np.linalg.norm(predictions - a) / np.linalg.norm(a)
@@ -67,52 +64,68 @@ if __name__ == "__main__":
     # load data
     OR = OffensiveRatingSource().get_data(urls)
     PACE = PaceSource().get_data(urls)
+    combined = OR * PACE / 100
 
     # generate mask
-    np.random.seed(123)
-    mask = np.zeros((N,N))
-    mask[:int(K * N)] = 1
-    np.apply_along_axis(np.random.shuffle, 0, mask)
-    for i in range(0, len(mask)):
-        mask[i][i] = 0
+    rmse_OR = []
+    rmse_PACE = []
+    rmse_combined = []
+    for K in np.linspace(0.1,1,10):
+        print("------For K =", K)
+        np.random.seed(123)
+        mask = np.zeros((N,N))
+        mask[:int(K * N)] = 1
+        np.apply_along_axis(np.random.shuffle, 0, mask)
+        for i in range(0, len(mask)):
+            mask[i][i] = 0
 
-    # normalize df_OF
-    # print("Normalizing OR...")
-    max_OR = OR.to_numpy().max()
-    norm_df_OR = OR / max_OR
+        # normalize df_OF
+        # max_OR = OR.to_numpy().max()
+        # norm_df_OR = OR / max_OR
 
-    # print("rank", np.linalg.matrix_rank(OR, tol=0.5))
-    # print("rank of norm_df_OR", np.linalg.matrix_rank(norm_df_OR, tol=0.5))
+        # print("rank", np.linalg.matrix_rank(OR, tol=0.5))
+        # print("rank of norm_df_OR", np.linalg.matrix_rank(norm_df_OR, tol=0.5))
 
-    # solves the matrix
-    model = NuclearNormMinimization()
-    # model = NuclearNormMinimizationMSE()
-    recovered_OR = model.predict(norm_df_OR, mask)
-    # recovered_OR = model.predict(OR, mask)
-    recovered_PACE = model.predict(PACE, mask)
+        # solves the matrix
+        # model = NuclearNormMinimization()
+        model = NuclearNormMinimizationMSE()
+        # recovered_OR = model.predict(norm_df_OR, mask)
+        recovered_OR = model.predict(OR, mask)
+        recovered_PACE = model.predict(PACE, mask)
 
-    recovered_OR = recovered_OR * max_OR
+        # recovered_OR = recovered_OR * max_OR
 
-    print("rank", np.linalg.matrix_rank(recovered_OR, tol=0.5))
+        OR_mse_mean =  benchmark(OR, recovered_OR).loc[:,"mse"].mean()
+        PACE_mse_mean = benchmark(PACE, recovered_PACE).loc[:,"mse"].mean()
 
-    # write to predictions.csv
-    predictions = recovered_OR * recovered_PACE / 100
-    predictions.to_csv("cache/predictions.csv")
+        predictions = recovered_OR * recovered_PACE / 100
+        combined_mse_mean = benchmark(combined, predictions).loc[:,"mse"].mean()
+
+        rmse_OR.append(OR_mse_mean)
+        rmse_PACE.append(PACE_mse_mean)
+        rmse_combined.append(combined_mse_mean)
+
+        # write to predictions.csv
+        predictions.to_csv("cache/predictions.csv")
 
     # S = np.linalg.svd(norm_df_OF, compute_uv=False, full_matrices=False)
     # _S = np.linalg.svd(predictions_OF, compute_uv=False, full_matrices=False)
 
     # f = px.scatter(S)
     # f.show()
-    truth = OR * PACE / 100
-    df_mse = benchmark(truth, predictions)
-    print(df_mse)
 
-    # plot the RMSE
-    pd.options.plotting.backend = 'plotly'
-    fig = df_mse.plot(kind='bar',x='team', y='mse', color='team',
-            labels={'team':'Team', 'mse':'MSE'})
-    fig.show()
+    # Plot the RMSE with different K
+    fig, ax = plt.subplots()
+    ax.plot(np.linspace(0.1,1,10), rmse_OR, linewidth=2.0, marker=".", label='Offensive Ratings')
+    ax.plot(np.linspace(0.1,1,10), rmse_PACE, linewidth=2.0, marker=".", label='Pace')
+    ax.plot(np.linspace(0.1,1,10), rmse_combined, linewidth=2.0, marker=".", label='Score Potential')
+    ax.set_title("Root Mean Squared Error with Various Proportion of Observations.")
+    ax.set_xlabel('Proportion of Observed Entries (K)')
+    ax.set_ylabel('Root Mean Squared Error (RMSE)')
+
+    plt.xticks(np.linspace(0.1,1,10))
+    plt.legend()
+    plt.show()
 
     # show predictions
     if not args:

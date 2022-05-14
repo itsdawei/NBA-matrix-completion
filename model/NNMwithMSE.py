@@ -5,7 +5,7 @@ from model.model import Model
 
 class NuclearNormMinimizationMSE(Model):
 
-    def predict(self, A: pd.DataFrame, mask) -> pd.DataFrame:
+    def predict(self, A: pd.DataFrame, mask, mu) -> pd.DataFrame:
         """
         Solve using a nuclear norm approach, using CVXPY.
         Parameters:
@@ -20,7 +20,6 @@ class NuclearNormMinimizationMSE(Model):
             completed matrix
         """
         X = cvxpy.Variable(shape=A.shape, name="X")
-        mu = 1.0
 
         objective = Minimize(mu * norm(X, "nuc") + 0.5 * sum_squares(multiply(mask, X - A)))
 
