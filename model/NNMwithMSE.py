@@ -24,7 +24,7 @@ class NuclearNormMinimizationMSE(Model):
         objective = Minimize(mu * norm(X, "nuc") + 0.5 * sum_squares(multiply(mask, X - A)))
 
         problem = Problem(objective, [])
-        problem.solve(solver=SCS)
+        result = problem.solve(solver=SCS)
 
         predictions = pd.DataFrame(X.value, columns=self.teams)
         predictions = predictions.assign(**{"Unnamed: 0": self.teams}).set_index(
@@ -36,5 +36,6 @@ class NuclearNormMinimizationMSE(Model):
 
         nuc = np.sum(np.linalg.svd(predictions, compute_uv=False))
         print("nuc", nuc)
+        print("result", result)
 
         return predictions
